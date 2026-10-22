@@ -1,12 +1,12 @@
 cmake_minimum_required(VERSION 3.16.3...3.19.7 FATAL_ERROR)
 
-project(SlicerDMSAAI)
+project(DMSAAI)
 
 #-----------------------------------------------------------------------------
 # Extension meta-information
 set(EXTENSION_HOMEPAGE "https://github.com/4burakfe/SlicerDMSAAI")
 set(EXTENSION_CATEGORY "Nuclear Medicine")
-set(EXTENSION_CONTRIBUTORS "Burak Demir (Mehmet Akif Inan Education and Research Hospital), Demet Nak (Recep Tayyip Erdogan University)")
+set(EXTENSION_CONTRIBUTORS "Burak Demir (Kocaeli City Hospital), Demet Nak (Recep Tayyip Erdogan University)")
 set(EXTENSION_DESCRIPTION "AI-powered renal cortical scintigraphy analysis for Tc-99m DMSA studies: kidney segmentation, split renal function and AI-assisted kidney evaluation from planar NM DICOM images.")
 set(EXTENSION_ICONURL "https://raw.githubusercontent.com/4burakfe/SlicerDMSAAI/main/DMSAAI.png")
 set(EXTENSION_SCREENSHOTURLS "https://raw.githubusercontent.com/4burakfe/DMSAAI/main/scr.jpg")

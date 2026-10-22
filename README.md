@@ -1,6 +1,6 @@
-# SlicerDMSAAI
+# DMSAAI
 
-3D Slicer extension for **DMSAAI**, the AI-powered renal cortical scintigraphy analysis tool for Tc-99m DMSA studies:
+**DMSAAI** is a 3D Slicer extension for AI-powered renal cortical scintigraphy analysis of Tc-99m DMSA studies:
 automated kidney segmentation, split renal function (SRF) and AI-assisted kidney evaluation from planar
 nuclear medicine DICOM images.
 
@@ -11,7 +11,7 @@ same networks, weights, preprocessing and quantification, and gives the same res
 
 ## Authors
 
-Dr. Burak Demir - Mehmet Akif İnan Education and Research Hospital - Department of Nuclear Medicine - Şanlıurfa, Turkey
+Dr. Burak Demir - Kocaeli City Hospital - Department of Nuclear Medicine - Kocaeli, Turkey
 
 Dr. Demet Nak - Recep Tayyip Erdogan University - Department of Nuclear Medicine - Rize, Turkey
 
@@ -22,18 +22,20 @@ Dr. Demet Nak - Recep Tayyip Erdogan University - Department of Nuclear Medicine
 | **DMSAAI** (Nuclear Medicine category) | Segmentation, SRF (posterior-only and geometric mean), background ROIs and kidney evaluation |
 | **DICOM DMSA Planar Plugin** (hidden) | DICOM plugin that loads planar NM DMSA studies one volume per view, without mirroring, and keeps the DICOM metadata on each volume |
 
-## Installation (development)
+## Installation
 
-1. Clone this repository.
-2. In Slicer: *Edit → Application Settings → Modules → Additional module paths*, add the `DMSAAI` folder of the
-   clone, and restart Slicer.
-3. Install the **PyTorch** extension (Extensions Manager, it is a dependency of this extension) and install
-   PyTorch with its **PyTorch Utils** module, which picks the right CPU/CUDA build. DMSAAI does not install PyTorch
-   itself: if it is missing, the module asks you to install it with PyTorch Utils (and opens that module).
+1. In Slicer, open the **Extensions Manager**, search for **DMSAAI**, install it (the **PyTorch** extension is
+   installed with it as a dependency) and restart Slicer.
+2. Install PyTorch with the **PyTorch Utils** module, which picks the right CPU/CUDA build. DMSAAI does not install
+   PyTorch itself: if it is missing, the module asks you to install it with PyTorch Utils (and opens that module).
    Once PyTorch is available, the module offers to install MONAI, einops and OpenCV with pip on the first run, or
    in advance with *Advanced → Check / install Python dependencies*.
-4. The model weights (about 140 MB) are downloaded from the DMSAAI repository on first use into Slicer's cache
-   folder. You can point *Advanced → Model weights* at an existing DMSAAI folder instead.
+3. The model weights (about 140 MB) are downloaded from the DMSAAI repository on first use into Slicer's cache
+   folder, after you confirm the download. You can point *Advanced → Model weights* at an existing DMSAAI folder
+   instead.
+
+For development, clone this repository, add its `DMSAAI` folder under *Edit → Application Settings → Modules →
+Additional module paths*, restart Slicer and follow steps 2-3 (install the PyTorch extension first).
 
 ## Usage
 
@@ -104,4 +106,4 @@ clinical decision making**.
 
 ## License
 
-MIT license
+MIT license, see [LICENSE.txt](LICENSE.txt).
