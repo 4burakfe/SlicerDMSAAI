@@ -445,16 +445,28 @@ class DMSAAILogic(ScriptedLoadableModuleLogic):
 
     Display nodes created by the logic:
       - "DMSAAI POST" / "DMSAAI ANT": preprocessed 256x256 images that the networks see
-      - "DMSAAI POST ROIs" / "DMSAAI ANT ROIs": kidney and background ROIs
+      - "DMSAAI LAO" / "RAO" / "LPO" / "RPO": preprocessed obliques, display only
+      - "DMSAAI POST ROIs" / "DMSAAI ANT ROIs": kidney and background ROIs, each shown only in its own view
+      - SRF labels under each kidney, like the DMSAAI overlay
     """
 
     SETTINGS_WEIGHTS_DIR = "DMSAAI/WeightsDirectory"
+    # Same colours as the DMSAAI overlay: left kidney red, right kidney blue,
+    # left background orange, right background cyan.
     SEGMENT_COLORS = {
-        "LeftKidney": (0.10, 0.45, 1.00),
-        "RightKidney": (1.00, 0.20, 0.20),
-        "LeftBackground": (0.55, 0.80, 1.00),
-        "RightBackground": (1.00, 0.70, 0.40),
+        "LeftKidney": (1.0, 0.0, 0.0),
+        "RightKidney": (0.0, 0.0, 1.0),
+        "LeftBackground": (1.0, 0.65, 0.0),
+        "RightBackground": (0.0, 1.0, 1.0),
     }
+    LABEL_COLORS = {processing.LEFT: (1.0, 0.0, 0.0), processing.RIGHT: (0.0, 0.0, 1.0)}
+    OBLIQUE_KEYS = ("lao", "rao", "lpo", "rpo")
+    # Slice view of each image. Like DMSAAI, the anterior view is on the left and the posterior on the right.
+    VIEW_SLICE = {"ant": "Red", "post": "Yellow",
+                  "lao": "DMSAAILAO", "rao": "DMSAAIRAO", "lpo": "DMSAAILPO", "rpo": "DMSAAIRPO"}
+    VIEW_TITLES = {"ant": "Anterior View", "post": "Posterior View",
+                   "lao": "LAO View", "rao": "RAO View", "lpo": "LPO View", "rpo": "RPO View"}
+    LAYOUT_ID = 75301
     SEGMENT_NAMES = {
         "LeftKidney": "Left kidney",
         "RightKidney": "Right kidney",
@@ -475,6 +487,8 @@ class DMSAAILogic(ScriptedLoadableModuleLogic):
         self.antProcessedNode = None
         self.postSegmentationNode = None
         self.antSegmentationNode = None
+        self.obliqueProcessedNodes = {}
+        self.srfLabelNodes = {}
         self.reset()
 
     # -- general --------------------------------------------------------
@@ -493,6 +507,7 @@ class DMSAAILogic(ScriptedLoadableModuleLogic):
         self.postProbabilities = None
         self.postMask = None
         self.antMask = None
+        self.obliqueImages = {}
         self.srf = None
         self.classification = None
         self.modelName = None
@@ -501,6 +516,8 @@ class DMSAAILogic(ScriptedLoadableModuleLogic):
             self.antProcessedNode = None
             self.postSegmentationNode = None
             self.antSegmentationNode = None
+            self.obliqueProcessedNodes = {}
+            self.srfLabelNodes = {}
 
     @property
     def weightsDir(self):
@@ -591,19 +608,36 @@ class DMSAAILogic(ScriptedLoadableModuleLogic):
         return nodes
 
     def findViews(self, nodes):
-        """First POST and ANT volume among the nodes (analysis nodes are skipped)."""
+        """First volume of each view (ANT, POST, obliques) among the nodes. Analysis nodes are skipped."""
         found = {}
         for node in nodes:
             if node is None or not node.IsA("vtkMRMLScalarVolumeNode") or node.GetAttribute(volumes.ATTR_ROLE):
                 continue
             view = volumes.guess_view_of_node(node)
-            if view in ("post", "ant") and view not in found:
+            if view in dicomviews.VIEW_KEYS and view not in found:
                 found[view] = node
         return found
 
     def findViewsInScene(self):
-        """POST and ANT volumes in the scene, preferring the most recently added ones."""
+        """Volumes of each view in the scene, preferring the most recently added ones."""
         return self.findViews(reversed(slicer.util.getNodesByClass("vtkMRMLScalarVolumeNode")))
+
+    def findObliques(self, postNode):
+        """Oblique views in the scene that belong to the same patient and study as the posterior view."""
+        if postNode is None:
+            return {}
+        keys = (volumes.ATTR_PATIENT_ID, volumes.ATTR_STUDY_DATE)
+        reference = [postNode.GetAttribute(key) for key in keys]
+        found = {}
+        for view, node in self.findViewsInScene().items():
+            if view not in self.OBLIQUE_KEYS:
+                continue
+            values = [node.GetAttribute(key) for key in keys]
+            # Only compare when both nodes carry the DICOM attributes of the DMSA loader.
+            if all(reference) and all(values) and values != reference:
+                continue
+            found[view] = node
+        return found
 
     def patientInfo(self, node):
         if node is None:
@@ -647,6 +681,19 @@ class DMSAAILogic(ScriptedLoadableModuleLogic):
             self._removeNode(self.antSegmentationNode)
             self.antProcessedNode = None
             self.antSegmentationNode = None
+        # Obliques are preprocessed like in DMSAAI and only displayed.
+        obliqueNodes = self.findObliques(postNode)
+        for view in self.OBLIQUE_KEYS:
+            node = obliqueNodes.get(view)
+            if node is None:
+                self._removeNode(self.obliqueProcessedNodes.pop(view, None))
+                continue
+            planar, _ = volumes.raw_view_from_node(node, log=self.log)
+            image = processing.preprocess(planar.pixels, planar.spacing, resample, normalize, log=self.log)
+            self.obliqueImages[view] = image
+            self.obliqueProcessedNodes[view] = self._updateProcessedNode(
+                self.obliqueProcessedNodes.get(view), image, processing.output_spacing(planar.spacing, resample),
+                f"DMSAAI {view.upper()}", view)
         self._hideSegmentations()
         self.log("Images prepared (raw DICOM pixels, 256x256).")
 
@@ -682,15 +729,25 @@ class DMSAAILogic(ScriptedLoadableModuleLogic):
                                                    backgroundMethod)
         self.postSegmentationNode = self._updateSegmentation(self.postSegmentationNode, "DMSAAI POST ROIs",
                                                              self.postProcessedNode, self.postMask,
-                                                             self.srf["posterior"])
+                                                             self.srf["posterior"], "post")
         if self.antImage is not None:
             self.antSegmentationNode = self._updateSegmentation(self.antSegmentationNode, "DMSAAI ANT ROIs",
                                                                 self.antProcessedNode, self.antMask,
-                                                                self.srf["anterior"])
+                                                                self.srf["anterior"], "ant")
+        self._updateSrfLabels()
         self._updateViewAnnotations()
         return self.srf
 
-    def _updateSegmentation(self, segNode, name, referenceNode, mask, counts):
+    def displayedSRF(self):
+        """SRF shown on the images: geometric mean when the anterior view is available, like DMSAAI."""
+        if self.srf is None:
+            return None
+        return self.srf["gmSRF"] if self.srf["gmSRF"] is not None else self.srf["postSRF"]
+
+    def sliceNodeID(self, view):
+        return "vtkMRMLSliceNode" + self.VIEW_SLICE[view]
+
+    def _updateSegmentation(self, segNode, name, referenceNode, mask, counts, view):
         if segNode is None or slicer.mrmlScene.GetNodeByID(segNode.GetID()) is None:
             segNode = slicer.mrmlScene.AddNewNodeByClass("vtkMRMLSegmentationNode", name)
             segNode.SetAttribute(volumes.ATTR_ROLE, "rois")
@@ -711,11 +768,67 @@ class DMSAAILogic(ScriptedLoadableModuleLogic):
             slicer.util.updateSegmentBinaryLabelmapFromArray(array.astype(np.uint8)[np.newaxis, :, :], segNode,
                                                              segmentId, referenceNode)
         display = segNode.GetDisplayNode()
-        display.SetOpacity2DFill(0.15)
+        # Contours only, as in DMSAAI, and only in this view's slice viewer.
+        display.SetOpacity2DFill(0.0)
         display.SetOpacity2DOutline(1.0)
         display.SetSliceIntersectionThickness(2)
+        display.SetViewNodeIDs([self.sliceNodeID(view)])
         display.SetVisibility(True)
         return segNode
+
+    def _updateSrfLabels(self):
+        """Percentage under each kidney in its colour, like the DMSAAI overlay."""
+        values = self.displayedSRF()
+        for view, volumeNode, mask in (("post", self.postProcessedNode, self.postMask),
+                                       ("ant", self.antProcessedNode, self.antMask)):
+            for label in (processing.LEFT, processing.RIGHT):
+                key = (view, label)
+                node = self.srfLabelNodes.get(key)
+                if node is not None and slicer.mrmlScene.GetNodeByID(node.GetID()) is None:
+                    node = None
+                if node is None:
+                    if volumeNode is None:
+                        continue
+                    node = self._createLabelNode(f"DMSAAI {view.upper()} {processing.LABEL_NAMES[label]} SRF",
+                                                 self.LABEL_COLORS[label], view)
+                    self.srfLabelNodes[key] = node
+                node.RemoveAllControlPoints()
+                if volumeNode is None or mask is None or values is None or values[label] <= 0.0:
+                    continue
+                coords = np.argwhere(mask == label)
+                if len(coords) == 0:
+                    continue
+                row = coords[:, 0].max() + 8
+                col = coords[:, 1].mean()
+                ijkToRas = vtk.vtkMatrix4x4()
+                volumeNode.GetIJKToRASMatrix(ijkToRas)
+                ras = ijkToRas.MultiplyPoint((col, row, 0, 1))[:3]
+                node.AddControlPoint(list(ras), f"{values[label]:.1f}%")
+
+    def _createLabelNode(self, name, color, view):
+        node = slicer.mrmlScene.AddNewNodeByClass("vtkMRMLMarkupsFiducialNode", name)
+        node.SetAttribute(volumes.ATTR_ROLE, "label")
+        node.SetHideFromEditors(True)
+        node.SetLocked(True)
+        node.CreateDefaultDisplayNodes()
+        display = node.GetDisplayNode()
+        display.SetColor(color)
+        display.SetSelectedColor(color)
+        if hasattr(display, "SetActiveColor"):
+            display.SetActiveColor(color)
+        display.SetUseGlyphScale(False)
+        display.SetGlyphSize(0.01)
+        display.SetTextScale(4.0)
+        display.SetPointLabelsVisibility(True)
+        if hasattr(display, "SetPropertiesLabelVisibility"):
+            display.SetPropertiesLabelVisibility(False)
+        if hasattr(display, "GetTextProperty"):
+            textProperty = display.GetTextProperty()
+            textProperty.SetBold(True)
+            textProperty.SetBackgroundColor(1.0, 1.0, 1.0)
+            textProperty.SetBackgroundOpacity(0.6)
+        display.SetViewNodeIDs([self.sliceNodeID(view)])
+        return node
 
     def showBackground(self, show):
         for segNode in (self.postSegmentationNode, self.antSegmentationNode):
@@ -728,6 +841,9 @@ class DMSAAILogic(ScriptedLoadableModuleLogic):
         for segNode in (self.postSegmentationNode, self.antSegmentationNode):
             if segNode is not None and segNode.GetDisplayNode() is not None:
                 segNode.GetDisplayNode().SetVisibility(False)
+        for node in self.srfLabelNodes.values():
+            if slicer.mrmlScene.GetNodeByID(node.GetID()) is not None:
+                node.RemoveAllControlPoints()
 
     def classify(self):
         if self.postImage is None:
@@ -762,16 +878,33 @@ class DMSAAILogic(ScriptedLoadableModuleLogic):
 
     # -- display --------------------------------------------------------
 
+    def _layoutXML(self):
+        def sliceView(view, color):
+            return (f'<item><view class="vtkMRMLSliceNode" singletontag="{self.VIEW_SLICE[view]}">'
+                    '<property name="orientation" action="default">Coronal</property>'
+                    f'<property name="viewlabel" action="default">{view.upper()}</property>'
+                    f'<property name="viewcolor" action="default">{color}</property></view></item>')
+        top = sliceView("ant", "#F34A33") + sliceView("post", "#EDD54C")
+        bottom = "".join(sliceView(view, "#8C8C8C") for view in self.OBLIQUE_KEYS)
+        return ('<layout type="vertical" split="true">'
+                f'<item splitSize="650"><layout type="horizontal" split="true">{top}</layout></item>'
+                f'<item splitSize="350"><layout type="horizontal" split="true">{bottom}</layout></item>'
+                '</layout>')
+
     def showLayout(self):
-        """Side by side coronal views: POST on the left (Red), ANT on the right (Yellow)."""
+        """ANT (left) and POST (right) coronal views, plus a row of obliques when they are loaded."""
         layoutManager = slicer.app.layoutManager()
         if layoutManager is None:
             return
-        layoutManager.setLayout(slicer.vtkMRMLLayoutNode.SlicerLayoutSideBySideView)
-        pairs = (("Red", self.postProcessedNode, self.postSegmentationNode, "POSTERIOR"),
-                 ("Yellow", self.antProcessedNode, self.antSegmentationNode, "ANTERIOR"))
-        for viewName, volumeNode, segNode, title in pairs:
-            sliceWidget = layoutManager.sliceWidget(viewName)
+        if self.obliqueProcessedNodes:
+            layoutNode = layoutManager.layoutLogic().GetLayoutNode()
+            if not layoutNode.IsLayoutDescription(self.LAYOUT_ID):
+                layoutNode.AddLayoutDescription(self.LAYOUT_ID, self._layoutXML())
+            layoutManager.setLayout(self.LAYOUT_ID)
+        else:
+            layoutManager.setLayout(slicer.vtkMRMLLayoutNode.SlicerLayoutSideBySideView)
+        for view, volumeNode in self._displayedVolumes().items():
+            sliceWidget = layoutManager.sliceWidget(self.VIEW_SLICE[view])
             if sliceWidget is None:
                 continue
             sliceNode = sliceWidget.mrmlSliceNode()
@@ -780,36 +913,47 @@ class DMSAAILogic(ScriptedLoadableModuleLogic):
             composite.SetBackgroundVolumeID(volumeNode.GetID() if volumeNode else None)
             composite.SetForegroundVolumeID(None)
             composite.SetLabelVolumeID(None)
-            if segNode is not None and segNode.GetDisplayNode() is not None:
-                segNode.GetDisplayNode().SetViewNodeIDs([sliceNode.GetID()])
             sliceWidget.sliceLogic().FitSliceToAll()
             sliceNode.SetSliceOffset(0)
         self._updateViewAnnotations()
+
+    def _displayedVolumes(self):
+        volumesByView = {"ant": self.antProcessedNode, "post": self.postProcessedNode}
+        for view in self.OBLIQUE_KEYS:
+            volumesByView[view] = self.obliqueProcessedNodes.get(view)
+        return volumesByView
 
     def _updateViewAnnotations(self):
         layoutManager = slicer.app.layoutManager()
         if layoutManager is None:
             return
-        srfText = {"Red": "", "Yellow": ""}
-        if self.srf is not None:
-            gm = self.srf["gmSRF"]
-            values = gm if gm is not None else self.srf["postSRF"]
-            method = "GM" if gm is not None else "POST"
-            # Left kidney is on the screen left in POST and on the screen right in ANT.
-            srfText["Red"] = (f"L {values[processing.LEFT]:.1f}%  |  R {values[processing.RIGHT]:.1f}%  ({method})")
-            srfText["Yellow"] = (f"R {values[processing.RIGHT]:.1f}%  |  L {values[processing.LEFT]:.1f}%  ({method})")
-        for viewName, title, node in (("Red", "POSTERIOR", self.postProcessedNode),
-                                      ("Yellow", "ANTERIOR", self.antProcessedNode)):
-            sliceWidget = layoutManager.sliceWidget(viewName)
+        for view, node in self._displayedVolumes().items():
+            sliceWidget = layoutManager.sliceWidget(self.VIEW_SLICE[view])
             if sliceWidget is None:
                 continue
+            title = self.VIEW_TITLES[view]
+            if node is None:
+                title += " (Not Loaded)" if view in ("ant", "post") else ""
+            elif view in ("ant", "post") and self.srf is not None:
+                title = title.replace(" View", " + Seg Overlay")
             corner = sliceWidget.sliceView().cornerAnnotation()
-            corner.SetText(vtk.vtkCornerAnnotation.UpperRight, title if node is not None else "")
-            corner.SetText(vtk.vtkCornerAnnotation.LowerRight, srfText[viewName] if node is not None else "")
+            corner.SetText(vtk.vtkCornerAnnotation.UpperEdge, title)
+            corner.SetText(vtk.vtkCornerAnnotation.UpperRight, "")
+            corner.SetText(vtk.vtkCornerAnnotation.LowerRight, "")
+            if view in ("ant", "post") and node is not None:
+                # Patient side markers, as the image is displayed as stored.
+                left, right = ("R", "L") if view == "ant" else ("L", "R")
+                corner.SetText(vtk.vtkCornerAnnotation.LeftEdge, left)
+                corner.SetText(vtk.vtkCornerAnnotation.RightEdge, right)
+            else:
+                corner.SetText(vtk.vtkCornerAnnotation.LeftEdge, "")
+                corner.SetText(vtk.vtkCornerAnnotation.RightEdge, "")
             sliceWidget.sliceView().scheduleRender()
 
     def setDisplay(self, colorNodeID, windowFraction=1.0):
-        for node, image in ((self.postProcessedNode, self.postImage), (self.antProcessedNode, self.antImage)):
+        pairs = [(self.postProcessedNode, self.postImage), (self.antProcessedNode, self.antImage)]
+        pairs += [(self.obliqueProcessedNodes.get(view), self.obliqueImages.get(view)) for view in self.OBLIQUE_KEYS]
+        for node, image in pairs:
             if node is None or image is None or node.GetDisplayNode() is None:
                 continue
             display = node.GetDisplayNode()
@@ -875,4 +1019,9 @@ class DMSAAITest(ScriptedLoadableModuleTest):
         self.assertAlmostEqual(srf["postSRF"][processing.LEFT], 75.0, places=3)
         self.assertAlmostEqual(srf["postSRF"][processing.RIGHT], 25.0, places=3)
         self.assertIsNotNone(logic.postSegmentationNode.GetSegmentation().GetSegment("LeftKidney"))
+        # ROIs of the posterior view are shown only in the posterior slice view.
+        display = logic.postSegmentationNode.GetDisplayNode()
+        self.assertEqual(display.GetNumberOfViewNodeIDs(), 1)
+        self.assertEqual(display.GetNthViewNodeID(0), logic.sliceNodeID("post"))
+        self.assertEqual(logic.srfLabelNodes[("post", processing.LEFT)].GetNthControlPointLabel(0), "75.0%")
         self.delayDisplay("SRF test passed")

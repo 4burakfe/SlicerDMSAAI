@@ -49,7 +49,10 @@ Dr. Demet Nak - Recep Tayyip Erdogan University - Department of Nuclear Medicine
 5. Click **Clinical Evaluation** for the cortical abnormality, normal kidney, afunctional kidney and horseshoe
    kidney models.
 
-The layout shows POSTERIOR (left) and ANTERIOR (right) side by side with the kidney and background ROIs.
+The layout follows DMSAAI: the anterior view on the left and the posterior view on the right, each with only its own
+kidney (red = left, blue = right) and background (orange / cyan) contours and the SRF under each kidney (geometric
+mean when the anterior view is available). Oblique views (LAO, RAO, LPO, RPO) of the same study are shown in a row
+below when loaded; they are not segmented.
 
 ## Orientation and DICOM metadata
 
