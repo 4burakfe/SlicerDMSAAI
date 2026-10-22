@@ -27,9 +27,11 @@ Dr. Demet Nak - Recep Tayyip Erdogan University - Department of Nuclear Medicine
 1. Clone this repository.
 2. In Slicer: *Edit → Application Settings → Modules → Additional module paths*, add the `DMSAAI` folder of the
    clone, and restart Slicer.
-3. On the first segmentation the module offers to install PyTorch, MONAI, einops and OpenCV into Slicer's Python.
-   If the [SlicerPyTorch](https://github.com/fepegar/SlicerPyTorch) extension is installed, it is used to pick the
-   right CUDA build of PyTorch. This can also be done in advance with *Advanced → Install Python dependencies*.
+3. Install the **PyTorch** extension (Extensions Manager, it is a dependency of this extension) and install
+   PyTorch with its **PyTorch Utils** module, which picks the right CPU/CUDA build. DMSAAI does not install PyTorch
+   itself: if it is missing, the module asks you to install it with PyTorch Utils (and opens that module).
+   Once PyTorch is available, the module offers to install MONAI, einops and OpenCV with pip on the first run, or
+   in advance with *Advanced → Check / install Python dependencies*.
 4. The model weights (about 140 MB) are downloaded from the DMSAAI repository on first use into Slicer's cache
    folder. You can point *Advanced → Model weights* at an existing DMSAAI folder instead.
 

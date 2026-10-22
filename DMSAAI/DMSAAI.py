@@ -216,8 +216,9 @@ class DMSAAIWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
         advancedLayout.addRow("Model weights:", self.weightsPathEdit)
         self.downloadButton = qt.QPushButton("Download model weights")
         advancedLayout.addRow(self.downloadButton)
-        self.installButton = qt.QPushButton("Install Python dependencies")
-        self.installButton.toolTip = "Install PyTorch, MONAI, einops and OpenCV into Slicer's Python"
+        self.installButton = qt.QPushButton("Check / install Python dependencies")
+        self.installButton.toolTip = ("Checks that PyTorch is installed (install it with the PyTorch Utils module) "
+                                      "and installs MONAI, einops and OpenCV into Slicer's Python")
         advancedLayout.addRow(self.installButton)
         self.deviceLabel = qt.QLabel("Compute device: (detected on first run)")
         advancedLayout.addRow(self.deviceLabel)
@@ -573,39 +574,54 @@ class DMSAAILogic(ScriptedLoadableModuleLogic):
 
     # -- dependencies and weights ----------------------------------------
 
-    def requirementsInstalled(self):
+    def torchInstalled(self):
         import importlib.util
-        if importlib.util.find_spec("torch") is None:
-            return False
-        return all(importlib.util.find_spec(module) is not None for module, _ in self.REQUIREMENTS)
+        return importlib.util.find_spec("torch") is not None
+
+    def missingRequirements(self):
+        """pip requirements (other than PyTorch) that are not installed yet."""
+        import importlib.util
+        return [requirement for module, requirement in self.REQUIREMENTS if importlib.util.find_spec(module) is None]
+
+    def requirementsInstalled(self):
+        return self.torchInstalled() and not self.missingRequirements()
 
     def ensureRequirements(self, askConfirmation=True):
-        if self.requirementsInstalled():
+        """Check PyTorch first, then offer to install MONAI, einops and OpenCV.
+
+        PyTorch is never installed here: the right build depends on the GPU and CUDA version, so the
+        user installs it with the PyTorch Utils module of the PyTorch extension.
+        """
+        if not self.torchInstalled():
+            self._promptTorchInstall()
+            return False
+        missing = self.missingRequirements()
+        if not missing:
             return True
         if askConfirmation and not slicer.util.confirmOkCancelDisplay(
-                "DMSAAI needs PyTorch, MONAI, einops and OpenCV, which are not installed in Slicer's Python yet.\n\n"
-                "Install them now? This downloads several hundred MB and can take a few minutes."):
+                f"DMSAAI also needs {', '.join(missing)}, which are not installed in Slicer's Python yet.\n\n"
+                "Install them now?"):
             return False
-        import importlib.util
-        if importlib.util.find_spec("torch") is None:
-            self.log("Installing PyTorch...")
-            installed = False
-            try:
-                # The PyTorch extension picks the right CUDA build for this computer.
-                import PyTorchUtils
-                torchLogic = PyTorchUtils.PyTorchUtilsLogic()
-                installed = torchLogic.installTorch(askConfirmation=False) is not None
-            except ImportError:
-                pass
-            if not installed:
-                slicer.util.pip_install("torch")
-        for module, requirement in self.REQUIREMENTS:
-            if importlib.util.find_spec(module) is None:
-                self.log(f"Installing {requirement}...")
-                slicer.util.pip_install(requirement)
+        import importlib
+        for requirement in missing:
+            self.log(f"Installing {requirement}...")
+            slicer.util.pip_install(requirement)
         importlib.invalidate_caches()
         self.log("Python dependencies installed.")
         return self.requirementsInstalled()
+
+    def _promptTorchInstall(self):
+        if hasattr(slicer.modules, "pytorchutils"):
+            if slicer.util.confirmOkCancelDisplay(
+                    "PyTorch is not installed in Slicer's Python.\n\n"
+                    "Install it with the PyTorch Utils module, which picks the right build (CPU or CUDA) for this "
+                    "computer, then run DMSAAI again.\n\nOpen PyTorch Utils now?"):
+                slicer.util.selectModule("PyTorchUtils")
+        else:
+            slicer.util.warningDisplay(
+                "PyTorch is not installed in Slicer's Python.\n\n"
+                "Install the PyTorch extension from the Extensions Manager, restart Slicer, then install PyTorch "
+                "with the PyTorch Utils module and run DMSAAI again.")
 
     def ensureWeights(self, files=None, askConfirmation=True):
         missing = networks.missing_weights(self.weightsDir, files)
