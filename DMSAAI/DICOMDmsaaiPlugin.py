@@ -7,13 +7,15 @@ from slicer.ScriptedLoadableModule import ScriptedLoadableModule
 
 from DICOMLib import DICOMLoadable, DICOMPlugin
 
-from DMSAAILib import dicomviews, volumes
+from DMSAAILib import dicomviews, settings, volumes
 
 # The DICOM module selects, per series, only the loadables with the highest confidence and
 # loads all of them on a tie. MultiVolumeImporter offers 1.0 for multi-frame NM files, so a
-# recognised DMSA series must score strictly higher to be the only default.
+# DMSA series (a description contains one of the DMSA keywords, editable in the module) must score strictly
+# higher to be the only default. Other planar NM stays below the scalar volume plugin (0.5), so
+# it is still offered here but never loaded by this plugin unless the user picks it.
 DMSA_CONFIDENCE = 1.1
-UNKNOWN_PLANAR_CONFIDENCE = 0.6
+OTHER_PLANAR_CONFIDENCE = 0.3
 
 SETTINGS_SWITCH_MODULE = "DMSAAI/SwitchToModuleAfterDICOMLoad"
 
@@ -58,6 +60,8 @@ class DICOMDmsaaiPluginClass(DICOMPlugin):
 
         planarFiles = []
         viewNames = []
+        isDmsa = False
+        keywords = settings.dmsa_keywords()
         for f in candidates:
             try:
                 ds = dicomviews.read_dataset(f, stop_before_pixels=True)
@@ -67,6 +71,7 @@ class DICOMDmsaaiPluginClass(DICOMPlugin):
                 continue
             frames = int(getattr(ds, "NumberOfFrames", 1) or 1)
             planarFiles.append(f)
+            isDmsa = isDmsa or dicomviews.is_dmsa_study(ds, keywords)
             viewNames += [dicomviews.determine_view(ds, i).upper() for i in range(frames)]
         if not planarFiles:
             return []
@@ -78,8 +83,10 @@ class DICOMDmsaaiPluginClass(DICOMPlugin):
         loadable.name = f"{description} ({', '.join(known) if known else 'planar NM'})"
         loadable.tooltip = (f"Planar NM image(s) loaded per view for DMSAAI: {', '.join(viewNames)}. "
                             "Images are displayed as stored, without mirroring.")
-        loadable.selected = True
-        loadable.confidence = DMSA_CONFIDENCE if known else UNKNOWN_PLANAR_CONFIDENCE
+        if not isDmsa:
+            loadable.tooltip += " Not recognised as a DMSA study from its descriptions."
+        loadable.selected = isDmsa
+        loadable.confidence = DMSA_CONFIDENCE if isDmsa else OTHER_PLANAR_CONFIDENCE
         return [loadable]
 
     def load(self, loadable):

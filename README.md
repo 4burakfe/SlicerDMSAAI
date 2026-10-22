@@ -37,8 +37,13 @@ Dr. Demet Nak - Recep Tayyip Erdogan University - Department of Nuclear Medicine
 
 1. Load the DMSA study, either
    - with the **DICOM** module: import the files and load the series. The default loader for planar NM is
-     "DMSA Planar NM", which creates one volume per view (ANT, POST, LAO, RPO, LPO, RAO). Its confidence (1.1) is
-     above MultiVolumeImporter's (1.0), so the series is not also loaded as a multivolume/sequence. After loading,
+     "DMSA Planar NM", which creates one volume per view (ANT, POST, LAO, RPO, LPO, RAO). A planar NM series is
+     treated as DMSA when its study/series/protocol description or radiopharmaceutical contains one of the
+     **DMSA study keywords** (defaults: DMSA, Succimer, Static Kidney, Statik Böbrek, Kortikal Böbrek, Cortical
+     Kidney, Renal Cortical and similar; edit them or restore the defaults under *Advanced* in the module; case,
+     Turkish letters and punctuation are ignored). DMSA series get confidence 1.1, above MultiVolumeImporter (1.0),
+     so they load only with this plugin; other planar NM gets 0.3, below the scalar volume plugin, so it loads as
+     usual unless you pick "DMSA Planar NM" in the advanced loader. After a DMSA load,
      Slicer switches to the DMSAAI module with the new POST/ANT volumes selected (set the
      `DMSAAI/SwitchToModuleAfterDICOMLoad` setting to `false` to turn this off), or
    - with **Load DICOM files...** / **Load folder...** in the DMSAAI module, which reads the files directly.
