@@ -54,7 +54,7 @@ Segmentation and classification networks are built with MONAI and PyTorch.
 #
 
 # Built-in Slicer colour tables (by node ID) followed by the custom DMSAAI colour maps,
-# which are read from Resources/ColorMaps/<name>.csv (256 rows of r,g,b in 0..1).
+# which are read from Resources/ColorMaps/<name without spaces>.csv (256 rows of r,g,b in 0..1).
 COLORMAPS = (
     ("Grey", "vtkMRMLColorTableNodeGrey"),
     ("Inverted grey", "vtkMRMLColorTableNodeInvertedGrey"),
@@ -63,8 +63,8 @@ COLORMAPS = (
     ("TruGold", None),
     ("Valhalla", None),
     ("Jotun", None),
-    ("ViridisCustom", None),
-    ("PET-HotIron", None),
+    ("Vanaheim", None),
+    ("Hot Iron", None),
     ("Inferno", "vtkMRMLColorTableNodeFileInferno.txt"),
 )
 
@@ -453,7 +453,7 @@ class DMSAAIWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
     def onDisplayChanged(self, value=None):
         name, colorNodeID = COLORMAPS[self.colormapCombo.currentIndex]
         if colorNodeID is None:
-            colorNodeID = self.logic.customColorNode(name, self.resourcePath(f"ColorMaps/{name}.csv")).GetID()
+            colorNodeID = self.logic.customColorNode(name, self.resourcePath(f"ColorMaps/{name.replace(' ', '')}.csv")).GetID()
         self.logic.setDisplay(colorNodeID, self.windowSlider.value / 100.0)
 
     def onToggleOverlays(self, show):

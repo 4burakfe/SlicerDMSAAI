@@ -21,11 +21,11 @@ set(MODULE_PYTHON_RESOURCES
   Resources/banner4.jpg
   Resources/ColorMaps/DICOM-Custom.csv
   Resources/ColorMaps/Hel.csv
+  Resources/ColorMaps/HotIron.csv
   Resources/ColorMaps/Jotun.csv
-  Resources/ColorMaps/PET-HotIron.csv
   Resources/ColorMaps/TruGold.csv
   Resources/ColorMaps/Valhalla.csv
-  Resources/ColorMaps/ViridisCustom.csv
+  Resources/ColorMaps/Vanaheim.csv
   )
 
 #-----------------------------------------------------------------------------
