@@ -950,13 +950,14 @@ class DMSAAILogic(ScriptedLoadableModuleLogic):
 
     def _layoutXML(self):
         def sliceView(view, color):
-            return (f'<item><view class="vtkMRMLSliceNode" singletontag="{self.VIEW_SLICE[view]}">'
+            return (f'<item splitSize="500"><view class="vtkMRMLSliceNode" singletontag="{self.VIEW_SLICE[view]}">'
                     '<property name="orientation" action="default">Coronal</property>'
                     f'<property name="viewlabel" action="default">{view.upper()}</property>'
                     f'<property name="viewcolor" action="default">{color}</property></view></item>')
         colors = {"post": "#F34A33", "ant": "#EDD54C"}
         rows = "".join(
-            '<item><layout type="horizontal" split="true">'
+            # Equal split sizes so all six views get the same size.
+            '<item splitSize="500"><layout type="horizontal" split="true">'
             + "".join(sliceView(view, colors.get(view, "#8C8C8C")) for view in row)
             + "</layout></item>"
             for row in self.LAYOUT_ROWS)
@@ -968,7 +969,9 @@ class DMSAAILogic(ScriptedLoadableModuleLogic):
         if layoutManager is None:
             return
         layoutNode = layoutManager.layoutLogic().GetLayoutNode()
-        if not layoutNode.IsLayoutDescription(self.LAYOUT_ID):
+        if layoutNode.IsLayoutDescription(self.LAYOUT_ID):
+            layoutNode.SetLayoutDescription(self.LAYOUT_ID, self._layoutXML())
+        else:
             layoutNode.AddLayoutDescription(self.LAYOUT_ID, self._layoutXML())
         layoutManager.setLayout(self.LAYOUT_ID)
         for view, volumeNode in self._displayedVolumes().items():
