@@ -940,9 +940,10 @@ class DMSAAILogic(ScriptedLoadableModuleLogic):
             corner.SetText(vtk.vtkCornerAnnotation.UpperEdge, title)
             corner.SetText(vtk.vtkCornerAnnotation.UpperRight, "")
             corner.SetText(vtk.vtkCornerAnnotation.LowerRight, "")
-            if view in ("ant", "post") and node is not None:
-                # Patient side markers, as the image is displayed as stored.
-                left, right = ("R", "L") if view == "ant" else ("L", "R")
+            if node is not None:
+                # Patient side markers, as the image is displayed as stored: anterior views (ANT, LAO, RAO)
+                # have the patient's right on the screen left, posterior views (POST, LPO, RPO) the left.
+                left, right = ("RIGHT", "LEFT") if view in ("ant", "lao", "rao") else ("LEFT", "RIGHT")
                 corner.SetText(vtk.vtkCornerAnnotation.LeftEdge, left)
                 corner.SetText(vtk.vtkCornerAnnotation.RightEdge, right)
             else:
