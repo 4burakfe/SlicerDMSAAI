@@ -32,10 +32,7 @@ class DMSAAI(ScriptedLoadableModule):
         self.parent.dependencies = []
         self.parent.contributors = [
             "Burak Demir (Kocaeli City Hospital, Kocaeli, Turkey)",
-<<<<<<< Updated upstream
-=======
             "Muhammet Halil Baltacioglu (Trabzon University, Trabzon, Turkey)",            
->>>>>>> Stashed changes
             "Demet Nak (Recep Tayyip Erdogan University, Rize, Turkey)",
         ]
         self.parent.helpText = """
