@@ -1,12 +1,21 @@
 import logging
 import os
 
+import qt
 import slicer
 from slicer.ScriptedLoadableModule import ScriptedLoadableModule
 
 from DICOMLib import DICOMLoadable, DICOMPlugin
 
 from DMSAAILib import dicomviews, volumes
+
+# The DICOM module selects, per series, only the loadables with the highest confidence and
+# loads all of them on a tie. MultiVolumeImporter offers 1.0 for multi-frame NM files, so a
+# recognised DMSA series must score strictly higher to be the only default.
+DMSA_CONFIDENCE = 1.1
+UNKNOWN_PLANAR_CONFIDENCE = 0.6
+
+SETTINGS_SWITCH_MODULE = "DMSAAI/SwitchToModuleAfterDICOMLoad"
 
 
 #
@@ -70,8 +79,7 @@ class DICOMDmsaaiPluginClass(DICOMPlugin):
         loadable.tooltip = (f"Planar NM image(s) loaded per view for DMSAAI: {', '.join(viewNames)}. "
                             "Images are displayed as stored, without mirroring.")
         loadable.selected = True
-        # Higher than the generic scalar volume plugin (0.5) so this is the default for DMSA series.
-        loadable.confidence = 0.95 if known else 0.6
+        loadable.confidence = DMSA_CONFIDENCE if known else UNKNOWN_PLANAR_CONFIDENCE
         return [loadable]
 
     def load(self, loadable):
@@ -100,7 +108,42 @@ class DICOMDmsaaiPluginClass(DICOMPlugin):
                 firstNode = firstNode or node
                 if planar.view == "post" and posteriorNode is None:
                     posteriorNode = node
+                _loadedNodeIDs.append(node.GetID())
+        if firstNode is not None:
+            _scheduleSwitchToModule()
         return posteriorNode or firstNode
+
+
+# Nodes loaded since the last switch to the DMSAAI module. Several series (e.g. ANT/POST and
+# the obliques) are usually loaded in one go, so the switch runs once after all of them.
+_loadedNodeIDs = []
+_switchPending = False
+
+
+def _scheduleSwitchToModule():
+    global _switchPending
+    if _switchPending:
+        return
+    _switchPending = True
+    qt.QTimer.singleShot(0, _switchToModule)
+
+
+def _switchToModule():
+    global _switchPending
+    _switchPending = False
+    nodes = [slicer.mrmlScene.GetNodeByID(nodeID) for nodeID in _loadedNodeIDs]
+    nodes = [node for node in nodes if node is not None]
+    _loadedNodeIDs.clear()
+    if not nodes or slicer.app.testingEnabled():
+        return
+    if str(qt.QSettings().value(SETTINGS_SWITCH_MODULE, "true")).lower() not in ("true", "1"):
+        return
+    if not hasattr(slicer.modules, "dmsaai"):
+        return
+    slicer.util.selectModule("DMSAAI")
+    widget = slicer.modules.dmsaai.widgetRepresentation()
+    if widget is not None:
+        widget.self().selectInputs(nodes)
 
 
 #

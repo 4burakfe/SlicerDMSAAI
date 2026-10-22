@@ -37,15 +37,22 @@ Dr. Demet Nak - Recep Tayyip Erdogan University - Department of Nuclear Medicine
 
 1. Load the DMSA study, either
    - with the **DICOM** module: import the files and load the series. The default loader for planar NM is
-     "DMSA Planar NM", which creates one volume per view (ANT, POST, LAO, RPO, LPO, RAO), or
+     "DMSA Planar NM", which creates one volume per view (ANT, POST, LAO, RPO, LPO, RAO). Its confidence (1.1) is
+     above MultiVolumeImporter's (1.0), so the series is not also loaded as a multivolume/sequence. After loading,
+     Slicer switches to the DMSAAI module with the new POST/ANT volumes selected (set the
+     `DMSAAI/SwitchToModuleAfterDICOMLoad` setting to `false` to turn this off), or
    - with **Load DICOM files...** / **Load folder...** in the DMSAAI module, which reads the files directly.
-2. Check the *Posterior* and *Anterior* selectors (use **Detect views in scene** for volumes loaded another way).
+2. Check the *Posterior* and *Anterior* selectors. They are filled automatically; use **Detect views in scene** for
+   volumes loaded another way.
 3. Choose the architecture (SwinUNETR, SegResNet or DynUNet) and optional preprocessing.
 4. Click **Segment & Quantify SRF**. Adjust the kidney thresholds and background ROI method; the results update live.
 5. Click **Clinical Evaluation** for the cortical abnormality, normal kidney, afunctional kidney and horseshoe
    kidney models.
 
-The layout shows POSTERIOR (left) and ANTERIOR (right) side by side with the kidney and background ROIs.
+The layout follows DMSAAI: the anterior view on the left and the posterior view on the right, each with only its own
+kidney (red = left, blue = right) and background (orange / cyan) contours and the SRF under each kidney (geometric
+mean when the anterior view is available). Oblique views (LAO, RAO, LPO, RPO) of the same study are shown in a row
+below when loaded; they are not segmented.
 
 ## Orientation and DICOM metadata
 
