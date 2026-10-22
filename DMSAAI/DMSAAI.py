@@ -57,13 +57,14 @@ Segmentation and classification networks are built with MONAI and PyTorch.
 COLORMAPS = (
     ("Inverted grey", "vtkMRMLColorTableNodeInvertedGrey"),
     ("Grey", "vtkMRMLColorTableNodeGrey"),
+    ("DICOM-Custom", None),
+    ("Hel", None),
     ("TruGold", None),
     ("Valhalla", None),
     ("Jotun", None),
-    ("InfernoCustom", None),
     ("ViridisCustom", None),
-    ("PET-DICOMCopy", None),
     ("PET-HotIron", None),
+    ("Inferno", "vtkMRMLColorTableNodeFileInferno.txt"),
 )
 
 

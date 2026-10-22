@@ -60,7 +60,7 @@ ANT and POST show only their own kidney (red = left, blue = right) and backgroun
 SRF under each kidney (geometric mean when the anterior view is available), like DMSAAI. Obliques are not
 segmented. **Hide segmentations / annotations** toggles all ROIs and SRF labels. Every view has RIGHT / LEFT side
 labels. Colormaps: Inverted grey (default), Grey and the DMSAAI colour maps in `DMSAAI/Resources/ColorMaps`
-(TruGold, Valhalla, Jotun, InfernoCustom, ViridisCustom, PET-DICOMCopy, PET-HotIron).
+(DICOM-Custom, Hel, TruGold, Valhalla, Jotun, ViridisCustom, PET-HotIron), plus Slicer's Inferno.
 
 ## Orientation and DICOM metadata
 
