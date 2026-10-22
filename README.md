@@ -65,8 +65,13 @@ The layout is 2x3: POST, LPO, RPO on the top row and ANT, LAO, RAO below (views 
 ANT and POST show only their own kidney (red = left, blue = right) and background (orange / cyan) contours and the
 SRF under each kidney (geometric mean when the anterior view is available), like DMSAAI. Obliques are not
 segmented. **Hide segmentations / annotations** toggles all ROIs and SRF labels. Every view has RIGHT / LEFT side
-labels. Colormaps: Inverted grey (default), Grey and the DMSAAI colour maps in `DMSAAI/Resources/ColorMaps`
+labels. Colormaps: Grey (default), Inverted grey and the DMSAAI colour maps in `DMSAAI/Resources/ColorMaps`
 (DICOM-Custom, Hel, TruGold, Valhalla, Jotun, ViridisCustom, PET-HotIron), plus Slicer's Inferno.
+
+**Save settings** remembers the segmentation and evaluation architectures, normalization, resampling, kidney
+thresholds, background ROI method and colormap for the next Slicer session. **Restore defaults** brings back the
+DMSAAI defaults (SwinUNETR, DenseNet121, normalization and resampling on, 50% thresholds, Circumferential
+background, Grey) and forgets the saved settings.
 
 ![Screenshot](scr.jpg)
 
