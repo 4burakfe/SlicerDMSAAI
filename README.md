@@ -44,15 +44,18 @@ Dr. Demet Nak - Recep Tayyip Erdogan University - Department of Nuclear Medicine
    - with **Load DICOM files...** / **Load folder...** in the DMSAAI module, which reads the files directly.
 2. Check the *Posterior* and *Anterior* selectors. They are filled automatically; use **Detect views in scene** for
    volumes loaded another way.
-3. Choose the architecture (SwinUNETR, SegResNet or DynUNet) and optional preprocessing.
+3. Choose the architecture (SwinUNETR, SegResNet or DynUNet). Count normalization (200k) and 2x2 mm resampling are
+   on by default.
 4. Click **Segment & Quantify SRF**. Adjust the kidney thresholds and background ROI method; the results update live.
 5. Click **Clinical Evaluation** for the cortical abnormality, normal kidney, afunctional kidney and horseshoe
    kidney models.
 
-The layout follows DMSAAI: the anterior view on the left and the posterior view on the right, each with only its own
-kidney (red = left, blue = right) and background (orange / cyan) contours and the SRF under each kidney (geometric
-mean when the anterior view is available). Oblique views (LAO, RAO, LPO, RPO) of the same study are shown in a row
-below when loaded; they are not segmented.
+The layout is 2x3: POST, LPO, RPO on the top row and ANT, LAO, RAO below (views without an image stay empty).
+ANT and POST show only their own kidney (red = left, blue = right) and background (orange / cyan) contours and the
+SRF under each kidney (geometric mean when the anterior view is available), like DMSAAI. Obliques are not
+segmented. **Hide segmentations / annotations** toggles all ROIs and SRF labels. Every view has RIGHT / LEFT side
+labels. Colormaps: Inverted grey (default), Grey and the DMSAAI colour maps in `DMSAAI/Resources/ColorMaps`
+(TruGold, Valhalla, Jotun, InfernoCustom, ViridisCustom, PET-DICOMCopy, PET-HotIron).
 
 ## Orientation and DICOM metadata
 

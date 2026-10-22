@@ -52,14 +52,18 @@ Segmentation and classification networks are built with MONAI and PyTorch.
 # DMSAAIWidget
 #
 
+# Built-in Slicer colour tables (by node ID) followed by the custom DMSAAI colour maps,
+# which are read from Resources/ColorMaps/<name>.csv (256 rows of r,g,b in 0..1).
 COLORMAPS = (
     ("Inverted grey", "vtkMRMLColorTableNodeInvertedGrey"),
     ("Grey", "vtkMRMLColorTableNodeGrey"),
-    ("PET heat", "vtkMRMLPETProceduralColorNodePET-Heat"),
-    ("PET rainbow", "vtkMRMLPETProceduralColorNodePET-Rainbow2"),
-    ("Inferno", "vtkMRMLColorTableNodeFileInferno.txt"),
-    ("Viridis", "vtkMRMLColorTableNodeFileViridis.txt"),
-    ("Rainbow", "vtkMRMLColorTableNodeRainbow"),
+    ("TruGold", None),
+    ("Valhalla", None),
+    ("Jotun", None),
+    ("InfernoCustom", None),
+    ("ViridisCustom", None),
+    ("PET-DICOMCopy", None),
+    ("PET-HotIron", None),
 )
 
 
@@ -126,6 +130,8 @@ class DMSAAIWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
         segLayout.addRow("Architecture:", self.modelCombo)
         self.normalizeCheck = qt.QCheckBox("Normalize total counts to 200k")
         self.resampleCheck = qt.QCheckBox("Resample to 2x2 mm pixel size")
+        self.normalizeCheck.checked = True
+        self.resampleCheck.checked = True
         segLayout.addRow(self.normalizeCheck)
         segLayout.addRow(self.resampleCheck)
 
@@ -173,7 +179,12 @@ class DMSAAIWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
         self.windowSlider.decimals = 0
         self.windowSlider.toolTip = "Upper display limit as a percentage of the maximum count"
         displayLayout.addRow("Window level (%):", self.windowSlider)
-        self.layoutButton = qt.QPushButton("Show ANT / POST layout")
+        self.overlayButton = qt.QPushButton("Hide segmentations / annotations")
+        self.overlayButton.checkable = True
+        self.overlayButton.checked = True
+        self.overlayButton.toolTip = "Show or hide the kidney and background ROIs and the SRF labels"
+        displayLayout.addRow(self.overlayButton)
+        self.layoutButton = qt.QPushButton("Show DMSAAI layout")
         displayLayout.addRow(self.layoutButton)
 
         # Results
@@ -234,6 +245,7 @@ class DMSAAIWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
         self.colormapCombo.connect("currentIndexChanged(int)", self.onDisplayChanged)
         self.windowSlider.connect("valueChanged(double)", self.onDisplayChanged)
         self.layoutButton.connect("clicked(bool)", self.onShowLayout)
+        self.overlayButton.connect("toggled(bool)", self.onToggleOverlays)
         self.copyResultsButton.connect("clicked(bool)", self.onCopyResults)
         self.weightsPathEdit.connect("currentPathChanged(QString)", self.onWeightsPathChanged)
         self.downloadButton.connect("clicked(bool)", self.onDownloadWeights)
@@ -409,8 +421,14 @@ class DMSAAIWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
     # -- display --------------------------------------------------------
 
     def onDisplayChanged(self, value=None):
-        colorNodeID = COLORMAPS[self.colormapCombo.currentIndex][1]
+        name, colorNodeID = COLORMAPS[self.colormapCombo.currentIndex]
+        if colorNodeID is None:
+            colorNodeID = self.logic.customColorNode(name, self.resourcePath(f"ColorMaps/{name}.csv")).GetID()
         self.logic.setDisplay(colorNodeID, self.windowSlider.value / 100.0)
+
+    def onToggleOverlays(self, show):
+        self.overlayButton.text = "Hide segmentations / annotations" if show else "Show segmentations / annotations"
+        self.logic.setOverlaysVisible(show)
 
     def onShowLayout(self):
         self.logic.showLayout()
@@ -461,12 +479,14 @@ class DMSAAILogic(ScriptedLoadableModuleLogic):
     }
     LABEL_COLORS = {processing.LEFT: (1.0, 0.0, 0.0), processing.RIGHT: (0.0, 0.0, 1.0)}
     OBLIQUE_KEYS = ("lao", "rao", "lpo", "rpo")
-    # Slice view of each image. Like DMSAAI, the anterior view is on the left and the posterior on the right.
-    VIEW_SLICE = {"ant": "Red", "post": "Yellow",
+    # Slice view of each image. The layout is 2x3: posterior views (POST, LPO, RPO) on the top row and
+    # anterior views (ANT, LAO, RAO) below, so each oblique sits in the row of the view it is closest to.
+    LAYOUT_ROWS = (("post", "lpo", "rpo"), ("ant", "lao", "rao"))
+    VIEW_SLICE = {"post": "Red", "ant": "Yellow",
                   "lao": "DMSAAILAO", "rao": "DMSAAIRAO", "lpo": "DMSAAILPO", "rpo": "DMSAAIRPO"}
     VIEW_TITLES = {"ant": "Anterior View", "post": "Posterior View",
                    "lao": "LAO View", "rao": "RAO View", "lpo": "LPO View", "rpo": "RPO View"}
-    LAYOUT_ID = 75301
+    LAYOUT_ID = 75302
     SEGMENT_NAMES = {
         "LeftKidney": "Left kidney",
         "RightKidney": "Right kidney",
@@ -489,6 +509,7 @@ class DMSAAILogic(ScriptedLoadableModuleLogic):
         self.antSegmentationNode = None
         self.obliqueProcessedNodes = {}
         self.srfLabelNodes = {}
+        self.overlaysVisible = True
         self.reset()
 
     # -- general --------------------------------------------------------
@@ -773,8 +794,35 @@ class DMSAAILogic(ScriptedLoadableModuleLogic):
         display.SetOpacity2DOutline(1.0)
         display.SetSliceIntersectionThickness(2)
         display.SetViewNodeIDs([self.sliceNodeID(view)])
-        display.SetVisibility(True)
+        display.SetVisibility(self.overlaysVisible)
         return segNode
+
+    def setOverlaysVisible(self, show):
+        """Show or hide all ROIs and SRF labels."""
+        self.overlaysVisible = bool(show)
+        if self.srf is not None:
+            for segNode in (self.postSegmentationNode, self.antSegmentationNode):
+                if segNode is not None and segNode.GetDisplayNode() is not None:
+                    segNode.GetDisplayNode().SetVisibility(self.overlaysVisible)
+        for node in self.srfLabelNodes.values():
+            if slicer.mrmlScene.GetNodeByID(node.GetID()) is not None and node.GetDisplayNode() is not None:
+                node.GetDisplayNode().SetVisibility(self.overlaysVisible)
+
+    def customColorNode(self, name, csvPath):
+        """Colour table node for a DMSAAI colour map CSV, created once per scene."""
+        nodeName = f"DMSAAI {name}"
+        node = slicer.mrmlScene.GetFirstNodeByName(nodeName)
+        if node is not None and node.IsA("vtkMRMLColorTableNode"):
+            return node
+        colors = np.loadtxt(csvPath, delimiter=",", ndmin=2)
+        node = slicer.mrmlScene.AddNewNodeByClass("vtkMRMLColorTableNode", nodeName)
+        node.SetTypeToUser()
+        node.SetNumberOfColors(len(colors))
+        node.GetLookupTable().SetRange(0, len(colors) - 1)
+        for index, (r, g, b) in enumerate(colors):
+            node.SetColor(index, f"{name} {index}", r, g, b, 1.0)
+        node.SetAttribute("Category", "DMSAAI")
+        return node
 
     def _updateSrfLabels(self):
         """Percentage under each kidney in its colour, like the DMSAAI overlay."""
@@ -793,6 +841,7 @@ class DMSAAILogic(ScriptedLoadableModuleLogic):
                                                  self.LABEL_COLORS[label], view)
                     self.srfLabelNodes[key] = node
                 node.RemoveAllControlPoints()
+                node.GetDisplayNode().SetVisibility(self.overlaysVisible)
                 if volumeNode is None or mask is None or values is None or values[label] <= 0.0:
                     continue
                 coords = np.argwhere(mask == label)
@@ -884,25 +933,23 @@ class DMSAAILogic(ScriptedLoadableModuleLogic):
                     '<property name="orientation" action="default">Coronal</property>'
                     f'<property name="viewlabel" action="default">{view.upper()}</property>'
                     f'<property name="viewcolor" action="default">{color}</property></view></item>')
-        top = sliceView("ant", "#F34A33") + sliceView("post", "#EDD54C")
-        bottom = "".join(sliceView(view, "#8C8C8C") for view in self.OBLIQUE_KEYS)
-        return ('<layout type="vertical" split="true">'
-                f'<item splitSize="650"><layout type="horizontal" split="true">{top}</layout></item>'
-                f'<item splitSize="350"><layout type="horizontal" split="true">{bottom}</layout></item>'
-                '</layout>')
+        colors = {"post": "#F34A33", "ant": "#EDD54C"}
+        rows = "".join(
+            '<item><layout type="horizontal" split="true">'
+            + "".join(sliceView(view, colors.get(view, "#8C8C8C")) for view in row)
+            + "</layout></item>"
+            for row in self.LAYOUT_ROWS)
+        return f'<layout type="vertical" split="true">{rows}</layout>'
 
     def showLayout(self):
-        """ANT (left) and POST (right) coronal views, plus a row of obliques when they are loaded."""
+        """2x3 coronal views: POST, LPO, RPO on top and ANT, LAO, RAO below. Views without an image stay empty."""
         layoutManager = slicer.app.layoutManager()
         if layoutManager is None:
             return
-        if self.obliqueProcessedNodes:
-            layoutNode = layoutManager.layoutLogic().GetLayoutNode()
-            if not layoutNode.IsLayoutDescription(self.LAYOUT_ID):
-                layoutNode.AddLayoutDescription(self.LAYOUT_ID, self._layoutXML())
-            layoutManager.setLayout(self.LAYOUT_ID)
-        else:
-            layoutManager.setLayout(slicer.vtkMRMLLayoutNode.SlicerLayoutSideBySideView)
+        layoutNode = layoutManager.layoutLogic().GetLayoutNode()
+        if not layoutNode.IsLayoutDescription(self.LAYOUT_ID):
+            layoutNode.AddLayoutDescription(self.LAYOUT_ID, self._layoutXML())
+        layoutManager.setLayout(self.LAYOUT_ID)
         for view, volumeNode in self._displayedVolumes().items():
             sliceWidget = layoutManager.sliceWidget(self.VIEW_SLICE[view])
             if sliceWidget is None:
@@ -933,7 +980,7 @@ class DMSAAILogic(ScriptedLoadableModuleLogic):
                 continue
             title = self.VIEW_TITLES[view]
             if node is None:
-                title += " (Not Loaded)" if view in ("ant", "post") else ""
+                title += " (Not Loaded)"
             elif view in ("ant", "post") and self.srf is not None:
                 title = title.replace(" View", " + Seg Overlay")
             corner = sliceWidget.sliceView().cornerAnnotation()
