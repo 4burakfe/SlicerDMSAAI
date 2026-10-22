@@ -32,6 +32,10 @@ class DMSAAI(ScriptedLoadableModule):
         self.parent.dependencies = []
         self.parent.contributors = [
             "Burak Demir (Kocaeli City Hospital, Kocaeli, Turkey)",
+<<<<<<< Updated upstream
+=======
+            "Muhammet Halil Baltacioglu (Trabzon University, Trabzon, Turkey)",            
+>>>>>>> Stashed changes
             "Demet Nak (Recep Tayyip Erdogan University, Rize, Turkey)",
         ]
         self.parent.helpText = """
@@ -160,7 +164,7 @@ class DMSAAIWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
         self.classArchCombo = qt.QComboBox()
         self.classArchCombo.addItems(["DenseNet121"])
         evalLayout.addRow("Architecture:", self.classArchCombo)
-        self.classifyButton = qt.QPushButton("Clinical Evaluation")
+        self.classifyButton = qt.QPushButton("AI-powered Evaluation")
         self.classifyButton.enabled = False
         evalLayout.addRow(self.classifyButton)
 
