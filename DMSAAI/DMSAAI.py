@@ -282,6 +282,8 @@ class DMSAAIWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
 
     def enter(self):
         self._updateBanner()
+        if self.postSelector.currentNode() is None and self.antSelector.currentNode() is None:
+            self.selectInputs()
 
     def cleanup(self):
         self.removeObservers()
@@ -311,18 +313,31 @@ class DMSAAIWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
             if not nodes:
                 slicer.util.warningDisplay("No planar NM DMSA images were found in the selection.")
                 return
-            self.postSelector.setCurrentNode(nodes.get("post"))
-            self.antSelector.setCurrentNode(nodes.get("ant"))
-            self.onShowLayout()
+            self.selectInputs(list(nodes.values()))
 
     def onDetectViews(self):
-        found = self.logic.findViewsInScene()
-        if "post" in found:
-            self.postSelector.setCurrentNode(found["post"])
-        if "ant" in found:
-            self.antSelector.setCurrentNode(found["ant"])
-        if not found:
+        if not self.selectInputs():
             slicer.util.warningDisplay("No volume with a recognisable ANT or POST view was found in the scene.")
+
+    def selectInputs(self, nodes=None):
+        """Fill the Posterior/Anterior selectors from the given nodes (e.g. just loaded) or the scene.
+
+        Returns True if a posterior or anterior view was found.
+        """
+        found = self.logic.findViews(nodes) if nodes else {}
+        if not found:
+            found = self.logic.findViewsInScene()
+        if not found:
+            return False
+        # Set both selectors first, then prepare the images once.
+        for selector in (self.postSelector, self.antSelector):
+            selector.blockSignals(True)
+        self.postSelector.setCurrentNode(found.get("post"))
+        self.antSelector.setCurrentNode(found.get("ant"))
+        for selector in (self.postSelector, self.antSelector):
+            selector.blockSignals(False)
+        self.onInputChanged()
+        return True
 
     def onInputChanged(self, node=None):
         postNode = self.postSelector.currentNode()
@@ -575,15 +590,20 @@ class DMSAAILogic(ScriptedLoadableModuleLogic):
                                                       volumes.planar_attributes(planar, ds))
         return nodes
 
-    def findViewsInScene(self):
+    def findViews(self, nodes):
+        """First POST and ANT volume among the nodes (analysis nodes are skipped)."""
         found = {}
-        for node in slicer.util.getNodesByClass("vtkMRMLScalarVolumeNode"):
-            if node.GetAttribute(volumes.ATTR_ROLE):  # skip nodes created by the analysis
+        for node in nodes:
+            if node is None or not node.IsA("vtkMRMLScalarVolumeNode") or node.GetAttribute(volumes.ATTR_ROLE):
                 continue
             view = volumes.guess_view_of_node(node)
             if view in ("post", "ant") and view not in found:
                 found[view] = node
         return found
+
+    def findViewsInScene(self):
+        """POST and ANT volumes in the scene, preferring the most recently added ones."""
+        return self.findViews(reversed(slicer.util.getNodesByClass("vtkMRMLScalarVolumeNode")))
 
     def patientInfo(self, node):
         if node is None:
