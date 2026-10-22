@@ -164,10 +164,10 @@ class DICOMDmsaaiPlugin(ScriptedLoadableModule):
         ScriptedLoadableModule.__init__(self, parent)
         parent.title = "DICOM DMSA Planar Plugin"
         parent.categories = ["Developer Tools.DICOM Plugins"]
-        parent.contributors = ["Burak Demir (Mehmet Akif Inan Education and Research Hospital)"]
+        parent.contributors = ["Burak Demir (Kocaeli City Hospital)"]
         parent.helpText = ("Loads planar Tc-99m DMSA nuclear medicine images, one volume per view, "
                            "displayed as stored and with the DICOM metadata kept on each node.")
-        parent.acknowledgementText = "Part of the SlicerDMSAAI extension."
+        parent.acknowledgementText = "Part of the DMSAAI extension."
         parent.hidden = True
 
         try:

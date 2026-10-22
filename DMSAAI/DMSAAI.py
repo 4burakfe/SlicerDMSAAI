@@ -31,7 +31,7 @@ class DMSAAI(ScriptedLoadableModule):
         self.parent.categories = ["Nuclear Medicine"]
         self.parent.dependencies = []
         self.parent.contributors = [
-            "Burak Demir (Mehmet Akif Inan Education and Research Hospital, Sanliurfa, Turkey)",
+            "Burak Demir (Kocaeli City Hospital, Kocaeli, Turkey)",
             "Demet Nak (Recep Tayyip Erdogan University, Rize, Turkey)",
         ]
         self.parent.helpText = """
