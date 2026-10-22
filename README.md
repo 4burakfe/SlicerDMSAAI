@@ -7,7 +7,7 @@ nuclear medicine DICOM images.
 This is the Slicer port of the stand-alone [DMSAAI](https://github.com/4burakfe/DMSAAI) application. It uses the
 same networks, weights, preprocessing and quantification, and gives the same results.
 
-![banner](DMSAAI/Resources/banner3.jpg)
+![banner](DMSAAI/Resources/banner4.jpg)
 
 ## Authors
 
