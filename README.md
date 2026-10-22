@@ -15,6 +15,8 @@ Dr. Burak Demir - Kocaeli City Hospital - Department of Nuclear Medicine - Kocae
 
 Dr. Demet Nak - Recep Tayyip Erdogan University - Department of Nuclear Medicine - Rize, Turkey
 
+Dr. Muhammet Halil Baltacıoğlu - Trabzon University - Department of Nuclear Medicine - Trabzon, Turkey
+
 ## Contents
 
 | Module | Description |
@@ -65,6 +67,9 @@ SRF under each kidney (geometric mean when the anterior view is available), like
 segmented. **Hide segmentations / annotations** toggles all ROIs and SRF labels. Every view has RIGHT / LEFT side
 labels. Colormaps: Inverted grey (default), Grey and the DMSAAI colour maps in `DMSAAI/Resources/ColorMaps`
 (DICOM-Custom, Hel, TruGold, Valhalla, Jotun, ViridisCustom, PET-HotIron), plus Slicer's Inferno.
+
+![Screenshot](scr.jpg)
+
 
 ## Orientation and DICOM metadata
 
