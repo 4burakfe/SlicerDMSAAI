@@ -56,8 +56,8 @@ Segmentation and classification networks are built with MONAI and PyTorch.
 # Built-in Slicer colour tables (by node ID) followed by the custom DMSAAI colour maps,
 # which are read from Resources/ColorMaps/<name>.csv (256 rows of r,g,b in 0..1).
 COLORMAPS = (
-    ("Inverted grey", "vtkMRMLColorTableNodeInvertedGrey"),
     ("Grey", "vtkMRMLColorTableNodeGrey"),
+    ("Inverted grey", "vtkMRMLColorTableNodeInvertedGrey"),
     ("DICOM-Custom", None),
     ("Hel", None),
     ("TruGold", None),
@@ -189,6 +189,17 @@ class DMSAAIWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
         self.layoutButton = qt.QPushButton("Show DMSAAI layout")
         displayLayout.addRow(self.layoutButton)
 
+        # Saved settings
+        settingsRow = qt.QHBoxLayout()
+        self.saveSettingsButton = qt.QPushButton("Save settings")
+        self.saveSettingsButton.toolTip = ("Remember the architectures, normalization, resampling, kidney thresholds, "
+                                           "background ROI method and colormap for the next Slicer session")
+        settingsRow.addWidget(self.saveSettingsButton)
+        self.restoreDefaultsButton = qt.QPushButton("Restore defaults")
+        self.restoreDefaultsButton.toolTip = "Reset these settings to the DMSAAI defaults and forget the saved ones"
+        settingsRow.addWidget(self.restoreDefaultsButton)
+        self.layout.addLayout(settingsRow)
+
         # Results
         resultsButton = ctk.ctkCollapsibleButton()
         resultsButton.text = "Results"
@@ -240,6 +251,8 @@ class DMSAAIWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
 
         self.layout.addStretch(1)
 
+        self._setAnalysisSettings(settings.analysis_settings())
+
         # Connections
         self.loadFilesButton.connect("clicked(bool)", self.onLoadFiles)
         self.loadFolderButton.connect("clicked(bool)", self.onLoadFolder)
@@ -265,6 +278,8 @@ class DMSAAIWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
         self.installButton.connect("clicked(bool)", self.onInstallDependencies)
         self.keywordsEdit.connect("textChanged()", self.onKeywordsChanged)
         self.restoreKeywordsButton.connect("clicked(bool)", self.onRestoreKeywords)
+        self.saveSettingsButton.connect("clicked(bool)", self.onSaveSettings)
+        self.restoreDefaultsButton.connect("clicked(bool)", self.onRestoreDefaults)
 
         self.addObserver(slicer.mrmlScene, slicer.mrmlScene.EndCloseEvent, self.onSceneEndClose)
         self.onInputChanged()
@@ -453,6 +468,60 @@ class DMSAAIWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
         qt.QApplication.clipboard().setText(self.resultsText.toPlainText())
 
     # -- setup ----------------------------------------------------------
+
+    def _analysisWidgets(self):
+        return (self.modelCombo, self.classArchCombo, self.normalizeCheck, self.resampleCheck,
+                self.leftThresholdSlider, self.rightThresholdSlider, self.bgCombo, self.colormapCombo)
+
+    def _analysisSettings(self):
+        return {
+            "SegmentationArchitecture": self.modelCombo.currentText,
+            "ClassifierArchitecture": self.classArchCombo.currentText,
+            "Normalize": self.normalizeCheck.checked,
+            "Resample": self.resampleCheck.checked,
+            "LeftThreshold": self.leftThresholdSlider.value,
+            "RightThreshold": self.rightThresholdSlider.value,
+            "BackgroundMethod": self.bgCombo.currentText,
+            "Colormap": self.colormapCombo.currentText,
+        }
+
+    def _setAnalysisSettings(self, values):
+        """Set the widgets without triggering their handlers. Unknown combo box items are ignored."""
+        for widget in self._analysisWidgets():
+            widget.blockSignals(True)
+        try:
+            for combo, key in ((self.modelCombo, "SegmentationArchitecture"),
+                               (self.classArchCombo, "ClassifierArchitecture"),
+                               (self.bgCombo, "BackgroundMethod"), (self.colormapCombo, "Colormap")):
+                index = combo.findText(values[key])
+                if index >= 0:
+                    combo.currentIndex = index
+            self.normalizeCheck.checked = values["Normalize"]
+            self.resampleCheck.checked = values["Resample"]
+            self.leftThresholdSlider.value = values["LeftThreshold"]
+            self.rightThresholdSlider.value = values["RightThreshold"]
+        finally:
+            for widget in self._analysisWidgets():
+                widget.blockSignals(False)
+
+    def onSaveSettings(self):
+        settings.save_analysis_settings(self._analysisSettings())
+        self.log("Settings saved.")
+
+    def onRestoreDefaults(self):
+        before = self._analysisSettings()
+        settings.reset_analysis_settings()
+        self._setAnalysisSettings(settings.DEFAULT_ANALYSIS_SETTINGS)
+        after = self._analysisSettings()
+        changed = {key for key in after if after[key] != before[key]}
+        # Re-run only what the changes affect: preprocessing clears the segmentation, the masks follow the thresholds.
+        if changed & {"Normalize", "Resample"}:
+            self.onPreprocessingChanged()
+        elif changed & {"LeftThreshold", "RightThreshold", "BackgroundMethod"}:
+            self.onMaskParametersChanged()
+        if "Colormap" in changed:
+            self.onDisplayChanged()
+        self.log("Settings restored to the defaults.")
 
     def onWeightsPathChanged(self, path):
         self.logic.weightsDir = path
@@ -1070,6 +1139,7 @@ class DMSAAITest(ScriptedLoadableModuleTest):
         self.test_PlanarGeometry()
         self.setUp()
         self.test_QuantificationOnSyntheticImage()
+        self.test_AnalysisSettings()
 
     def test_PlanarGeometry(self):
         """Raw pixel (row 0, col 0) must be displayed at the top left of a coronal view."""
@@ -1115,3 +1185,22 @@ class DMSAAITest(ScriptedLoadableModuleTest):
         self.assertEqual(display.GetNthViewNodeID(0), logic.sliceNodeID("post"))
         self.assertEqual(logic.srfLabelNodes[("post", processing.LEFT)].GetNthControlPointLabel(0), "75.0%")
         self.delayDisplay("SRF test passed")
+
+    def test_AnalysisSettings(self):
+        """Saved settings must read back with their types, and restoring must bring back the defaults."""
+        self.delayDisplay("Testing saved settings")
+        saved = settings.analysis_settings()
+        hadSaved = any(qt.QSettings().contains(settings.ANALYSIS_SETTINGS_GROUP + key)
+                       for key in settings.DEFAULT_ANALYSIS_SETTINGS)
+        try:
+            custom = dict(settings.DEFAULT_ANALYSIS_SETTINGS, Normalize=False, LeftThreshold=35.0,
+                          BackgroundMethod="Center Rectangle", Colormap="Hel")
+            settings.save_analysis_settings(custom)
+            self.assertEqual(settings.analysis_settings(), custom)
+            settings.reset_analysis_settings()
+            self.assertEqual(settings.analysis_settings(), settings.DEFAULT_ANALYSIS_SETTINGS)
+        finally:
+            settings.reset_analysis_settings()
+            if hadSaved:
+                settings.save_analysis_settings(saved)
+        self.delayDisplay("Settings test passed")
