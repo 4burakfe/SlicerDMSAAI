@@ -53,6 +53,29 @@ def test_view_from_text():
     assert dicomviews.view_from_text("LPO - RAO") is None
 
 
+@pytest.mark.parametrize("text", [
+    "DMSA", "Static Kidney", "Statik Böbrek", "STATİK BÖBREK", "Kortikal Böbrek", "Cortical Kidney",
+    "Renal Cortical", "1-DMSA", "Bobrek Parankim Sintigrafisi, Planar Tc-99m DMSA", "Tc99m-DMSA", "Succimer",
+    "Renal cortex scan", "Kidney_Cortical", "static renal"])
+def test_dmsa_keywords_match(text):
+    from types import SimpleNamespace
+    assert dicomviews.is_dmsa_study(SimpleNamespace(StudyDescription=text))
+
+
+@pytest.mark.parametrize("text", ["Whole Body Bone", "MAG3 Renogram", "Thyroid", "DTPA", "Static Bone", ""])
+def test_dmsa_keywords_reject(text):
+    from types import SimpleNamespace
+    assert not dicomviews.is_dmsa_study(SimpleNamespace(StudyDescription=text, SeriesDescription="ANT-POST"))
+
+
+def test_dmsa_custom_keywords():
+    from types import SimpleNamespace
+    ds = SimpleNamespace(StudyDescription="Renal Sintigrafi")
+    assert not dicomviews.is_dmsa_study(ds)
+    assert dicomviews.is_dmsa_study(ds, ["renal sintigrafi"])
+    assert not dicomviews.is_dmsa_study(SimpleNamespace(StudyDescription="DMSA"), [])
+
+
 def test_preprocess_pads_and_crops():
     assert processing.preprocess(np.ones((128, 100))).shape == (256, 256)
     assert processing.preprocess(np.ones((300, 512))).shape == (256, 256)
@@ -79,6 +102,7 @@ def test_sample_views(study):
     files = study_files(study)
     for f in files:
         assert dicomviews.is_planar_nm(dicomviews.read_dataset(f, stop_before_pixels=True))
+    assert any(dicomviews.is_dmsa_study(dicomviews.read_dataset(f, stop_before_pixels=True)) for f in files)
     views, patient = dicomviews.collect_views(files)
     assert "post" in views and "ant" in views
     assert views["post"].pixels.shape == (256, 256)

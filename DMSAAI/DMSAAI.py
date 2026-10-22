@@ -16,7 +16,7 @@ from slicer.ScriptedLoadableModule import (
 )
 from slicer.util import VTKObservationMixin
 
-from DMSAAILib import dicomviews, networks, processing, volumes
+from DMSAAILib import dicomviews, networks, processing, settings, volumes
 
 
 #
@@ -220,6 +220,16 @@ class DMSAAIWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
         advancedLayout.addRow(self.installButton)
         self.deviceLabel = qt.QLabel("Compute device: (detected on first run)")
         advancedLayout.addRow(self.deviceLabel)
+        self.keywordsEdit = qt.QPlainTextEdit()
+        self.keywordsEdit.setMaximumHeight(120)
+        self.keywordsEdit.toolTip = (
+            "One keyword or phrase per line. A DICOM series whose study/series/protocol description or "
+            "radiopharmaceutical contains one of them is loaded by the DMSA plugin by default. Case, Turkish "
+            "letters and punctuation are ignored. Changes apply to series examined from now on.")
+        self.keywordsEdit.setPlainText("\n".join(settings.dmsa_keywords()))
+        advancedLayout.addRow("DMSA study keywords:", self.keywordsEdit)
+        self.restoreKeywordsButton = qt.QPushButton("Restore default keywords")
+        advancedLayout.addRow(self.restoreKeywordsButton)
         self.logText = qt.QPlainTextEdit()
         self.logText.readOnly = True
         self.logText.setMaximumHeight(140)
@@ -250,6 +260,8 @@ class DMSAAIWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
         self.weightsPathEdit.connect("currentPathChanged(QString)", self.onWeightsPathChanged)
         self.downloadButton.connect("clicked(bool)", self.onDownloadWeights)
         self.installButton.connect("clicked(bool)", self.onInstallDependencies)
+        self.keywordsEdit.connect("textChanged()", self.onKeywordsChanged)
+        self.restoreKeywordsButton.connect("clicked(bool)", self.onRestoreKeywords)
 
         self.addObserver(slicer.mrmlScene, slicer.mrmlScene.EndCloseEvent, self.onSceneEndClose)
         self.onInputChanged()
@@ -441,6 +453,15 @@ class DMSAAIWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
 
     def onWeightsPathChanged(self, path):
         self.logic.weightsDir = path
+
+    def onKeywordsChanged(self):
+        settings.set_dmsa_keywords(self.keywordsEdit.toPlainText().splitlines())
+
+    def onRestoreKeywords(self):
+        settings.reset_dmsa_keywords()
+        self.keywordsEdit.blockSignals(True)
+        self.keywordsEdit.setPlainText("\n".join(dicomviews.DEFAULT_DMSA_KEYWORDS))
+        self.keywordsEdit.blockSignals(False)
 
     def onDownloadWeights(self):
         with slicer.util.tryWithErrorDisplay("Failed to download model weights.", waitCursor=True):

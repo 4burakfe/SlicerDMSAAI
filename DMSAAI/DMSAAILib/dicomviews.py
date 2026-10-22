@@ -165,6 +165,60 @@ def determine_view(ds, frame=0, warnings=None):
     return angleHint or nameHint or "unknown"
 
 
+# Default phrases that identify a DMSA / static renal cortical study. A phrase matches when its
+# words appear consecutively in a description after normalize_text() (case, Turkish letters and
+# punctuation are ignored), e.g. "Statik Böbrek" matches "STATIK_BOBREK" and "Tc99m-DMSA" matches "DMSA".
+# Users can edit the list in the module (Advanced > DMSA study keywords).
+DEFAULT_DMSA_KEYWORDS = (
+    "DMSA",
+    "Succimer",
+    "Static Kidney",
+    "Static Renal",
+    "Statik Böbrek",
+    "Kortikal Böbrek",
+    "Böbrek Korteks",
+    "Böbrek Parankim",
+    "Cortical Kidney",
+    "Kidney Cortical",
+    "Kidney Cortex",
+    "Renal Cortical",
+    "Renal Cortex",
+    "Cortical Renal",
+    "Renal Parenchyma",
+)
+
+_TURKISH_FOLD = str.maketrans({"ç": "c", "ğ": "g", "ı": "i", "İ": "i", "ö": "o", "ş": "s", "ü": "u",
+                               "Ç": "c", "Ğ": "g", "Ö": "o", "Ş": "s", "Ü": "u"})
+
+
+def normalize_text(text):
+    import re
+    text = str(text or "").translate(_TURKISH_FOLD).lower()
+    return re.sub(r"[^a-z0-9]+", " ", text).strip()
+
+
+def study_text(ds):
+    """Descriptions and radiopharmaceutical names that can identify the study type."""
+    parts = [str(getattr(ds, key, "") or "") for key in (
+        "StudyDescription", "SeriesDescription", "ProtocolName", "DatasetName",
+        "PerformedProcedureStepDescription", "RequestedProcedureDescription")]
+    for item in getattr(ds, "RadiopharmaceuticalInformationSequence", None) or []:
+        parts.append(str(getattr(item, "Radiopharmaceutical", "") or ""))
+        for code in getattr(item, "RadiopharmaceuticalCodeSequence", None) or []:
+            parts.append(str(getattr(code, "CodeMeaning", "") or ""))
+    return " | ".join(p for p in parts if p)
+
+
+def is_dmsa_study(ds, keywords=None):
+    """True if a description or radiopharmaceutical name contains one of the DMSA keywords."""
+    text = f" {normalize_text(study_text(ds))} "
+    for keyword in keywords if keywords is not None else DEFAULT_DMSA_KEYWORDS:
+        phrase = normalize_text(keyword)
+        if phrase and f" {phrase} " in text:
+            return True
+    return False
+
+
 def is_nm(ds):
     return getattr(ds, "Modality", "") == "NM" or NM_IMAGE_STORAGE in str(getattr(ds, "SOPClassUID", ""))
 

@@ -9,6 +9,7 @@ set(MODULE_PYTHON_SCRIPTS
   DMSAAILib/dicomviews.py
   DMSAAILib/networks.py
   DMSAAILib/processing.py
+  DMSAAILib/settings.py
   DMSAAILib/volumes.py
   )
 
