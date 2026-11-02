@@ -30,7 +30,7 @@ Dr. Muhammet Halil Baltacıoğlu - Trabzon University - Department of Nuclear Me
    installed with it as a dependency) and restart Slicer.
 2. Install PyTorch with the **PyTorch Utils** module, which picks the right CPU/CUDA build. DMSAAI does not install
    PyTorch itself: if it is missing, the module asks you to install it with PyTorch Utils (and opens that module).
-   Once PyTorch is available, the module offers to install MONAI, einops and OpenCV with pip on the first run, or
+   Once PyTorch is available, the module offers to install MONAI and einops with pip on the first run, or
    in advance with *Advanced → Check / install Python dependencies*.
 3. The model weights (about 140 MB) are downloaded from the DMSAAI repository on first use into Slicer's cache
    folder, after you confirm the download. You can point *Advanced → Model weights* at an existing DMSAAI folder
@@ -103,7 +103,7 @@ Stand-alone tests of the processing code (no Slicer needed), using the sample st
 checkout:
 
 ```bash
-pip install pydicom numpy scipy opencv-python-headless pytest torch "monai>=1.3" einops
+pip install pydicom numpy scipy pytest torch "monai>=1.3" einops
 DMSAAI_DIR=/path/to/DMSAAI pytest Testing
 ```
 

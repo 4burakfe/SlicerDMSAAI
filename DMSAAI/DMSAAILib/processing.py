@@ -19,6 +19,34 @@ LABEL_NAMES = {LEFT: "Left", RIGHT: "Right"}
 BACKGROUND_METHODS = ("Circumferential", "Center Rectangle", "Inferolateral Crescent")
 
 
+def _linear_axis(src_size, dst_size):
+    """Source indices and weights of OpenCV INTER_LINEAR along one axis (half-pixel centres, edge clamp)."""
+    scale = src_size / dst_size
+    coords = (np.arange(dst_size, dtype=np.float64) + 0.5) * scale - 0.5
+    coords = np.clip(coords, 0.0, None)
+    i0 = np.floor(coords).astype(np.int64)
+    frac = (coords - i0).astype(np.float32)
+    i0 = np.minimum(i0, src_size - 1)
+    i1 = np.minimum(i0 + 1, src_size - 1)
+    return i0, i1, frac
+
+
+def resize_bilinear(img, new_h, new_w):
+    """Bilinear resize of a 2D array, numerically matching cv2.resize(..., interpolation=cv2.INTER_LINEAR).
+
+    Implemented with NumPy so the module does not depend on OpenCV.
+    """
+    img = np.asarray(img, dtype=np.float32)
+    h, w = img.shape
+    if (new_h, new_w) == (h, w):
+        return img.copy()
+    y0, y1, fy = _linear_axis(h, new_h)
+    x0, x1, fx = _linear_axis(w, new_w)
+    fy = fy[:, None]
+    rows = img[y0] * (1.0 - fy) + img[y1] * fy
+    return (rows[:, x0] * (1.0 - fx) + rows[:, x1] * fx).astype(np.float32)
+
+
 def preprocess(image, spacing=None, resample=False, normalize=False, log=None):
     """Optional 2x2 mm resampling, optional 200k count normalization, then centre crop/pad to 256x256."""
     img = np.asarray(image).astype(np.float32)
@@ -28,10 +56,9 @@ def preprocess(image, spacing=None, resample=False, normalize=False, log=None):
             factor_y = spacing[0] / TARGET_SPACING_MM
             factor_x = spacing[1] / TARGET_SPACING_MM
             if factor_y != 1.0 or factor_x != 1.0:
-                import cv2
                 new_w = int(img.shape[1] * factor_x)
                 new_h = int(img.shape[0] * factor_y)
-                img = cv2.resize(img, (new_w, new_h), interpolation=cv2.INTER_LINEAR)
+                img = resize_bilinear(img, new_h, new_w)
         elif log:
             log("Warning: no PixelSpacing metadata. Skipping resample.")
 

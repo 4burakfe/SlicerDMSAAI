@@ -1,7 +1,9 @@
 """
 Stand-alone tests of the DMSAAI helpers (no Slicer needed).
 
-    pip install pydicom numpy scipy opencv-python-headless pytest
+    pip install pydicom numpy scipy pytest
+    # optional, to check the resampling against OpenCV:
+    pip install opencv-python-headless
     # optional, for the network tests:
     pip install torch "monai>=1.3" einops
 
@@ -81,6 +83,21 @@ def test_preprocess_pads_and_crops():
     assert processing.preprocess(np.ones((300, 512))).shape == (256, 256)
     img = processing.preprocess(np.ones((64, 64)), normalize=True)
     assert np.isclose(img.sum(), processing.TARGET_TOTAL_COUNTS)
+
+
+def test_resize_bilinear_matches_opencv():
+    cv2 = pytest.importorskip("cv2")
+    rng = np.random.default_rng(0)
+    for (h, w), (nh, nw) in [((256, 256), (307, 307)), ((128, 128), (115, 115)), ((64, 100), (200, 31))]:
+        img = (rng.random((h, w)) * 1000).astype(np.float32)
+        expected = cv2.resize(img, (nw, nh), interpolation=cv2.INTER_LINEAR)
+        np.testing.assert_allclose(processing.resize_bilinear(img, nh, nw), expected, atol=1e-2)
+
+
+def test_preprocess_resample_without_opencv():
+    img = processing.preprocess(np.ones((128, 128)), spacing=(4.0, 4.0), resample=True)
+    assert img.shape == (256, 256)
+    assert np.allclose(img, 1.0)
 
 
 def test_srf_synthetic():
