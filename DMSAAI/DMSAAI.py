@@ -230,7 +230,7 @@ class DMSAAIWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
         advancedLayout.addRow(self.downloadButton)
         self.installButton = qt.QPushButton("Check / install Python dependencies")
         self.installButton.toolTip = ("Checks that PyTorch is installed (install it with the PyTorch Utils module) "
-                                      "and installs MONAI, einops and OpenCV into Slicer's Python")
+                                      "and installs MONAI and einops into Slicer's Python")
         advancedLayout.addRow(self.installButton)
         self.deviceLabel = qt.QLabel("Compute device: (detected on first run)")
         advancedLayout.addRow(self.deviceLabel)
@@ -589,7 +589,6 @@ class DMSAAILogic(ScriptedLoadableModuleLogic):
     REQUIREMENTS = (
         ("monai", "monai>=1.3"),
         ("einops", "einops"),
-        ("cv2", "opencv-python-headless"),
     )
 
     def __init__(self):
@@ -657,7 +656,7 @@ class DMSAAILogic(ScriptedLoadableModuleLogic):
         return self.torchInstalled() and not self.missingRequirements()
 
     def ensureRequirements(self, askConfirmation=True):
-        """Check PyTorch first, then offer to install MONAI, einops and OpenCV.
+        """Check PyTorch first, then offer to install MONAI and einops.
 
         PyTorch is never installed here: the right build depends on the GPU and CUDA version, so the
         user installs it with the PyTorch Utils module of the PyTorch extension.
