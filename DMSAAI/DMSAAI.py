@@ -1,6 +1,5 @@
 import logging
 import os
-import random
 
 import numpy as np
 import qt
@@ -69,6 +68,37 @@ COLORMAPS = (
 )
 
 
+class _BannerLabel(qt.QLabel):
+    """The extension banner, as wide as the module panel (aspect ratio kept, sharp on scaled displays)."""
+
+    def __init__(self, path):
+        qt.QLabel.__init__(self)
+        self._pixmap = qt.QPixmap(path)
+        self._shownWidth = -1
+        self.setAlignment(qt.Qt.AlignCenter)
+        self.setSizePolicy(qt.QSizePolicy.Ignored, qt.QSizePolicy.Fixed)
+        self.setMinimumWidth(1)
+        self.setFixedHeight(120)
+
+    def resizeEvent(self, event):
+        qt.QLabel.resizeEvent(self, event)
+        width = self.contentsRect().width()
+        if width < 20 or width == self._shownWidth or self._pixmap.isNull():
+            return
+        self._shownWidth = width
+        try:
+            ratio = float(self.devicePixelRatioF())
+        except Exception:
+            ratio = 1.0
+        scaled = self._pixmap.scaledToWidth(int(round(width * ratio)), qt.Qt.SmoothTransformation)
+        try:
+            scaled.setDevicePixelRatio(ratio)
+        except Exception:
+            pass
+        self.setFixedHeight(int(round(scaled.height() / ratio)))
+        self.setPixmap(scaled)
+
+
 class DMSAAIWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
 
     def __init__(self, parent=None):
@@ -83,11 +113,7 @@ class DMSAAIWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
         self.logic.logCallback = self.log
 
         # Banner
-        bannerPath = self.resourcePath(f"banner{random.randint(1, 4)}.jpg")
-        self.bannerPixmap = qt.QPixmap(bannerPath)
-        self.bannerLabel = qt.QLabel()
-        self.bannerLabel.setAlignment(qt.Qt.AlignCenter)
-        self.bannerLabel.setSizePolicy(qt.QSizePolicy.Ignored, qt.QSizePolicy.Fixed)
+        self.bannerLabel = _BannerLabel(self.resourcePath("Images/banner.jpg"))     # as wide as the panel
         self.bannerLabel.setToolTip("DMSAAI: Deep Learning-Based Cortical Renal Scintigraphy Analysis")
         self.layout.addWidget(self.bannerLabel)
         self._updateBanner()
@@ -310,11 +336,9 @@ class DMSAAIWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
         return slider
 
     def _updateBanner(self):
-        if self.bannerPixmap.isNull():
+        """Hide the banner when its picture is missing (it scales itself to the panel's width)."""
+        if self.bannerLabel._pixmap.isNull():
             self.bannerLabel.hide()
-            return
-        width = max(200, min(self.parent.width - 20, 520)) if self.parent.width > 0 else 400
-        self.bannerLabel.setPixmap(self.bannerPixmap.scaledToWidth(width, qt.Qt.SmoothTransformation))
 
     def log(self, message):
         logging.info(f"DMSAAI: {message}")

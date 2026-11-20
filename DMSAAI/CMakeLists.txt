@@ -15,10 +15,8 @@ set(MODULE_PYTHON_SCRIPTS
 
 set(MODULE_PYTHON_RESOURCES
   Resources/Icons/${MODULE_NAME}.png
-  Resources/banner1.jpg
-  Resources/banner2.jpg
-  Resources/banner3.jpg
-  Resources/banner4.jpg
+  Resources/Images/banner.jpg
+  Resources/Images/logo.png
   Resources/ColorMaps/DICOM-Custom.csv
   Resources/ColorMaps/Hel.csv
   Resources/ColorMaps/HotIron.csv

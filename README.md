@@ -1,3 +1,7 @@
+<p align="center">
+  <img src="Branding/DMSAAI_banner.jpg" alt="DMSAAI: AI-powered DMSA renal scintigraphy analysis" width="100%">
+</p>
+
 # DMSAAI
 
 **DMSAAI** is a 3D Slicer extension for AI-powered renal cortical scintigraphy analysis of Tc-99m DMSA studies:
@@ -6,8 +10,6 @@ nuclear medicine DICOM images.
 
 This is the Slicer port of the stand-alone [DMSAAI](https://github.com/4burakfe/DMSAAI) application. It uses the
 same networks, weights, preprocessing and quantification, and gives the same results.
-
-![banner](DMSAAI/Resources/banner4.jpg)
 
 ## Authors
 
@@ -74,7 +76,6 @@ DMSAAI defaults (SwinUNETR, DenseNet121, normalization and resampling on, 50% th
 background, Grey) and forgets the saved settings.
 
 ![Screenshot](scr.jpg)
-
 
 ## Orientation and DICOM metadata
 
